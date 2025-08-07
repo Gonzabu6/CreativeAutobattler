@@ -2,6 +2,8 @@
 const Engine = Matter.Engine,
       Render = Matter.Render,
       Runner = Matter.Runner,
+      Mouse = Matter.Mouse,
+      MouseConstraint = Matter.MouseConstraint,
       Bodies = Matter.Bodies,
       Composite = Matter.Composite;
 
@@ -104,3 +106,66 @@ const createRagdoll = (x, y) => {
 
 const ragdoll = createRagdoll(window.innerWidth / 2, window.innerHeight / 2 - 100);
 Composite.add(world, ragdoll);
+
+// --- Mouse Control ---
+const mouse = Mouse.create(render.canvas);
+const mouseConstraint = MouseConstraint.create(engine, {
+    mouse: mouse,
+    constraint: {
+        stiffness: 0.2,
+        render: {
+            visible: false
+        }
+    }
+});
+
+Composite.add(world, mouseConstraint);
+// keep the mouse in sync with rendering
+render.mouse = mouse;
+
+// --- Add some interactive boxes ---
+const boxA = Bodies.rectangle(window.innerWidth / 2 - 150, window.innerHeight / 2 - 150, 80, 80);
+const boxB = Bodies.rectangle(window.innerWidth / 2 + 150, window.innerHeight / 2 - 250, 80, 80);
+Composite.add(world, [boxA, boxB]);
+
+
+// --- Keyboard Control ---
+const keys = {};
+window.addEventListener('keydown', (e) => {
+    keys[e.code] = true;
+});
+window.addEventListener('keyup', (e) => {
+    keys[e.code] = false;
+});
+
+Matter.Events.on(engine, 'beforeUpdate', (event) => {
+    const playerTorso = ragdoll.bodies[1]; // Assuming torso is the second body
+    const playerLeftLeg = ragdoll.bodies[4];
+    const playerRightLeg = ragdoll.bodies[5];
+    const forceMagnitude = 0.05;
+    const jumpForce = 0.5;
+
+    if (keys['KeyA']) {
+        Matter.Body.applyForce(playerLeftLeg, playerLeftLeg.position, { x: -forceMagnitude, y: 0 });
+        Matter.Body.applyForce(playerRightLeg, playerRightLeg.position, { x: -forceMagnitude, y: 0 });
+    }
+
+    if (keys['KeyD']) {
+        Matter.Body.applyForce(playerLeftLeg, playerLeftLeg.position, { x: forceMagnitude, y: 0 });
+        Matter.Body.applyForce(playerRightLeg, playerRightLeg.position, { x: forceMagnitude, y: 0 });
+    }
+
+    if (keys['KeyW'] || keys['Space']) {
+        // A simple check to prevent flying. Only allow jump if torso is near the ground.
+        // This is a naive check and can be improved.
+        let canJump = false;
+        const groundY = ground.position.y - 30; // 30 is half of ground height
+        if (Math.abs(playerTorso.position.y - groundY) < 150) { // Check if torso is close to ground
+             canJump = true;
+        }
+
+        if(canJump){
+            Matter.Body.applyForce(playerTorso, playerTorso.position, { x: 0, y: -jumpForce });
+        }
+    }
+});
