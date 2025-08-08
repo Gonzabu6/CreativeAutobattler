@@ -69,16 +69,11 @@ const Character = (() => {
         const playerLeftLeg = ragdoll.bodies[4];
         const playerRightLeg = ragdoll.bodies[5];
         const forceMagnitude = 0.005;
-        const jumpForce = 0.1; // Increased jump force
+        const jumpForce = 0.2; // Further increased jump force
         const maxSpeed = 5;
-        const selfRightingTorque = 0.0005;
-
-        // Self-righting torque
-        if (Math.abs(playerTorso.angle) > 0.2) {
-            const torque = (playerTorso.angle > 0 ? -1 : 1) * selfRightingTorque;
-            Matter.Body.applyForce(playerTorso, { x: playerTorso.position.x, y: playerTorso.position.y - 20 }, { x: torque, y: 0 });
-            Matter.Body.applyForce(playerTorso, { x: playerTorso.position.x, y: playerTorso.position.y + 20 }, { x: -torque, y: 0 });
-        }
+        // --- Character Stabilization ---
+        // Keep the torso upright
+        Matter.Body.setAngle(playerTorso, 0);
 
         if (keys['KeyA'] && playerTorso.velocity.x > -maxSpeed) {
             Matter.Body.applyForce(playerLeftLeg, playerLeftLeg.position, { x: -forceMagnitude, y: 0 });
