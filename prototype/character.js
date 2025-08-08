@@ -1,5 +1,5 @@
 const Character = (() => {
-    let ragdoll;
+    let ragdoll, leftHip, rightHip;
     let grabConstraint = null;
     const keys = {};
 
@@ -13,16 +13,15 @@ const Character = (() => {
         const leftLeg = Matter.Bodies.rectangle(x - 20, y + 80, 20, 80, options);
         const rightLeg = Matter.Bodies.rectangle(x + 20, y + 80, 20, 80, options);
 
-        const neck = Matter.Constraint.create({ bodyA: head, bodyB: torso, pointA: { x: 0, y: 20 }, pointB: { x: 0, y: -40 }, stiffness: 1.0, length: 5 });
         const leftShoulder = Matter.Constraint.create({ bodyA: torso, bodyB: leftArm, pointA: { x: -20, y: -30 }, pointB: { x: 0, y: -20 }, stiffness: 1.0, length: 20 });
         const rightShoulder = Matter.Constraint.create({ bodyA: torso, bodyB: rightArm, pointA: { x: 20, y: -30 }, pointB: { x: 0, y: -20 }, stiffness: 1.0, length: 20 });
-        const leftHip = Matter.Constraint.create({ bodyA: torso, bodyB: leftLeg, pointA: { x: -10, y: 40 }, pointB: { x: 0, y: -30 }, stiffness: 1.0, length: 10 });
-        const rightHip = Matter.Constraint.create({ bodyA: torso, bodyB: rightLeg, pointA: { x: 10, y: 40 }, pointB: { x: 0, y: -30 }, stiffness: 1.0, length: 10 });
+        leftHip = Matter.Constraint.create({ bodyA: torso, bodyB: leftLeg, pointA: { x: -10, y: 40 }, pointB: { x: 0, y: -30 }, stiffness: 1.0, length: 10 });
+        rightHip = Matter.Constraint.create({ bodyA: torso, bodyB: rightLeg, pointA: { x: 10, y: 40 }, pointB: { x: 0, y: -30 }, stiffness: 1.0, length: 10 });
 
         // --- Make torso unrotatable ---
         Matter.Body.setInertia(torso, Infinity);
 
-        ragdoll = Matter.Composite.create({ bodies: [head, torso, leftArm, rightArm, leftLeg, rightLeg], constraints: [neck, leftShoulder, rightShoulder, leftHip, rightHip] });
+        ragdoll = Matter.Composite.create({ bodies: [head, torso, leftArm, rightArm, leftLeg, rightLeg], constraints: [leftShoulder, rightShoulder, leftHip, rightHip] });
         Matter.Composite.add(world, ragdoll);
     };
 
@@ -66,7 +65,7 @@ const Character = (() => {
         });
     };
 
-    const update = (ground) => {
+    const update = (ground, engine) => {
         if (!ragdoll) return;
 
         const playerTorso = ragdoll.bodies[1];
@@ -103,8 +102,29 @@ const Character = (() => {
         // Apply the new velocity to the torso
         Matter.Body.setVelocity(playerTorso, { x: newVelocityX, y: newVelocityY });
 
+        // Procedural walking animation
+        if (Math.abs(newVelocityX) > 0.1) {
+            // Loosen hips when walking
+            leftHip.stiffness = 0.1;
+            rightHip.stiffness = 0.1;
+            // Apply a small force to make legs move
+            const walkForce = 0.0005;
+            Matter.Body.applyForce(ragdoll.bodies[4], ragdoll.bodies[4].position, {x: newVelocityX > 0 ? -walkForce : walkForce, y:0});
+            Matter.Body.applyForce(ragdoll.bodies[5], ragdoll.bodies[5].position, {x: newVelocityX > 0 ? -walkForce : walkForce, y:0});
+        } else {
+            // Stiffen hips when standing still
+            leftHip.stiffness = 1.0;
+            rightHip.stiffness = 1.0;
+        }
+
         // Keep torso upright
         Matter.Body.setAngle(playerTorso, 0);
+
+        // Keep head fixed to torso
+        const head = ragdoll.bodies[0];
+        Matter.Body.setPosition(head, { x: playerTorso.position.x, y: playerTorso.position.y - 50 });
+        Matter.Body.setVelocity(head, playerTorso.velocity);
+
 
         // Make limbs follow the torso's new velocity
         for (let i = 0; i < ragdoll.bodies.length; i++) {
