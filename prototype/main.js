@@ -65,6 +65,7 @@ const createRagdoll = (x, y) => {
     const leftHip = Matter.Constraint.create({ bodyA: torso, bodyB: leftLeg, pointA: { x: -10, y: 40 }, pointB: { x: 0, y: -30 }, stiffness: 0.8, length: 20 });
     const rightHip = Matter.Constraint.create({ bodyA: torso, bodyB: rightLeg, pointA: { x: 10, y: 40 }, pointB: { x: 0, y: -30 }, stiffness: 0.8, length: 20 });
     const ragdoll = Composite.create({ bodies: [head, torso, leftArm, rightArm, leftLeg, rightLeg], constraints: [neck, leftShoulder, rightShoulder, leftHip, rightHip] });
+
     return ragdoll;
 };
 
@@ -148,6 +149,7 @@ Matter.Events.on(engine, 'beforeUpdate', (event) => {
     const playerRightLeg = ragdoll.bodies[5];
     const forceMagnitude = 0.01;
     const jumpForce = 0.1;
+
 
     if (keys['KeyA']) {
         Matter.Body.applyForce(playerLeftLeg, playerLeftLeg.position, { x: -forceMagnitude, y: 0 });
