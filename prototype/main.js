@@ -79,10 +79,8 @@ const boxB = Bodies.rectangle(window.innerWidth / 2 + 150, window.innerHeight - 
 const wall = Bodies.rectangle(window.innerWidth / 2 + 100, window.innerHeight - 90, 20, 120, { isStatic: true });
 const goalZone = Bodies.rectangle(window.innerWidth - 100, window.innerHeight - 90, 200, 120, {
     isStatic: true,
-    isSensor: true, // No physical collision
-    render: {
-        fillStyle: 'rgba(144, 238, 144, 0.5)' // Light green, semi-transparent
-    }
+    isSensor: true,
+    render: { fillStyle: 'rgba(144, 238, 144, 0.5)' }
 });
 
 Composite.add(world, [boxA, boxB, wall, goalZone]);
@@ -93,54 +91,37 @@ let grabConstraint = null;
 
 window.addEventListener('mousedown', (e) => {
     if (grabConstraint) {
-        // Release
         Composite.remove(world, grabConstraint);
         grabConstraint = null;
     } else {
-        // Grab
         const leftArm = ragdoll.bodies[2];
         const rightArm = ragdoll.bodies[3];
         const allBodies = Composite.allBodies(world);
-
         let bodyToGrab = null;
         let minDistance = Infinity;
-
-        // Find the closest grabbable body to the mouse
         for (let i = 0; i < allBodies.length; i++) {
             const body = allBodies[i];
-            if (body.isStatic || ragdoll.bodies.includes(body)) {
-                continue;
-            }
+            if (body.isStatic || ragdoll.bodies.includes(body)) continue;
             const distance = Matter.Vector.magnitude(Matter.Vector.sub(body.position, mouse.position));
             if (distance < minDistance) {
                 minDistance = distance;
                 bodyToGrab = body;
             }
         }
-
-        // Check if the closest body is within reach of an arm
         if (bodyToGrab) {
-            const reach = 100; // Max grab distance
+            const reach = 100;
             const distToLeftArm = Matter.Vector.magnitude(Matter.Vector.sub(leftArm.position, bodyToGrab.position));
             const distToRightArm = Matter.Vector.magnitude(Matter.Vector.sub(rightArm.position, bodyToGrab.position));
-
             let grabArm = null;
-            if (distToLeftArm < reach && distToLeftArm < distToRightArm) {
-                grabArm = leftArm;
-            } else if (distToRightArm < reach) {
-                grabArm = rightArm;
-            }
-
+            if (distToLeftArm < reach && distToLeftArm < distToRightArm) grabArm = leftArm;
+            else if (distToRightArm < reach) grabArm = rightArm;
             if (grabArm) {
                 grabConstraint = Matter.Constraint.create({
                     bodyA: grabArm,
                     bodyB: bodyToGrab,
                     stiffness: 0.2,
                     length: 40,
-                    render: {
-                        strokeStyle: '#c44',
-                        lineWidth: 2
-                    }
+                    render: { strokeStyle: '#c44', lineWidth: 2 }
                 });
                 Composite.add(world, grabConstraint);
             }
@@ -155,14 +136,13 @@ window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
 Matter.Events.on(engine, 'beforeUpdate', (event) => {
     // Goal check
-    const goalBounds = goalZone.bounds;
-    const boxBounds = boxA.bounds;
-    if (Matter.Bounds.overlaps(goalBounds, boxBounds)) {
-        goalZone.render.fillStyle = 'rgba(255, 215, 0, 0.7)'; // Gold on success
+    if (Matter.Bounds.overlaps(goalZone.bounds, boxA.bounds)) {
+        goalZone.render.fillStyle = 'rgba(255, 215, 0, 0.7)';
     } else {
-        goalZone.render.fillStyle = 'rgba(144, 238, 144, 0.5)'; // Back to green
+        goalZone.render.fillStyle = 'rgba(144, 238, 144, 0.5)';
     }
 
+    // Player controls
     const playerTorso = ragdoll.bodies[1];
     const playerLeftLeg = ragdoll.bodies[4];
     const playerRightLeg = ragdoll.bodies[5];
@@ -179,8 +159,7 @@ Matter.Events.on(engine, 'beforeUpdate', (event) => {
     }
     if (keys['KeyW'] || keys['Space']) {
         let canJump = false;
-        const groundY = ground.position.y - 30;
-        if (Math.abs(playerTorso.position.y - groundY) < 150) {
+        if (Math.abs(playerTorso.position.y - (ground.position.y - 30)) < 150) {
              canJump = true;
         }
         if(canJump){
