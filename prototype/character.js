@@ -19,6 +19,9 @@ const Character = (() => {
         const leftHip = Matter.Constraint.create({ bodyA: torso, bodyB: leftLeg, pointA: { x: -10, y: 40 }, pointB: { x: 0, y: -30 }, stiffness: 1.0, length: 10 });
         const rightHip = Matter.Constraint.create({ bodyA: torso, bodyB: rightLeg, pointA: { x: 10, y: 40 }, pointB: { x: 0, y: -30 }, stiffness: 1.0, length: 10 });
 
+        // --- Make torso unrotatable ---
+        Matter.Body.setInertia(torso, Infinity);
+
         ragdoll = Matter.Composite.create({ bodies: [head, torso, leftArm, rightArm, leftLeg, rightLeg], constraints: [neck, leftShoulder, rightShoulder, leftHip, rightHip] });
         Matter.Composite.add(world, ragdoll);
     };
@@ -65,31 +68,55 @@ const Character = (() => {
 
     const update = (ground) => {
         if (!ragdoll) return;
+
         const playerTorso = ragdoll.bodies[1];
-        const playerLeftLeg = ragdoll.bodies[4];
-        const playerRightLeg = ragdoll.bodies[5];
-        const forceMagnitude = 0.005;
-        const jumpForce = 0.2; // Further increased jump force
-        const maxSpeed = 5;
-        // --- Character Stabilization ---
-        // Keep the torso upright
+        const currentVelocity = playerTorso.velocity;
+        const walkSpeed = 5;
+        const jumpVelocity = -20; // Significantly increased jump velocity
+
+        // --- Kinematic Control Logic ---
+
+        // Horizontal movement
+        let newVelocityX = 0;
+        if (keys['KeyA']) {
+            newVelocityX = -walkSpeed;
+        } else if (keys['KeyD']) {
+            newVelocityX = walkSpeed;
+        } else {
+            // Apply damping to horizontal movement to prevent sliding
+            newVelocityX = currentVelocity.x * 0.9;
+        }
+
+        let newVelocityY = currentVelocity.y;
+
+        // Jumping
+        if (keys['KeyW'] || keys['Space']) {
+            const playerLeftLeg = ragdoll.bodies[4];
+            const playerRightLeg = ragdoll.bodies[5];
+            const feetY = Math.max(playerLeftLeg.position.y, playerRightLeg.position.y);
+            // Simple ground check
+            if (feetY > ground.position.y - 50) {
+                 newVelocityY = jumpVelocity;
+            }
+        }
+
+        // Apply the new velocity to the torso
+        Matter.Body.setVelocity(playerTorso, { x: newVelocityX, y: newVelocityY });
+
+        // Keep torso upright
         Matter.Body.setAngle(playerTorso, 0);
 
-        if (keys['KeyA'] && playerTorso.velocity.x > -maxSpeed) {
-            Matter.Body.applyForce(playerLeftLeg, playerLeftLeg.position, { x: -forceMagnitude, y: 0 });
-            Matter.Body.applyForce(playerRightLeg, playerRightLeg.position, { x: -forceMagnitude, y: 0 });
-        }
-        if (keys['KeyD'] && playerTorso.velocity.x < maxSpeed) {
-            Matter.Body.applyForce(playerLeftLeg, playerLeftLeg.position, { x: forceMagnitude, y: 0 });
-            Matter.Body.applyForce(playerRightLeg, playerRightLeg.position, { x: forceMagnitude, y: 0 });
-        }
-        if (keys['KeyW'] || keys['Space']) {
-            const feetY = Math.max(playerLeftLeg.position.y, playerRightLeg.position.y);
-            if (feetY > ground.position.y - 40) {
-                Matter.Body.applyForce(playerTorso, playerTorso.position, { x: 0, y: -jumpForce });
-                Matter.Body.applyForce(playerLeftLeg, playerLeftLeg.position, { x: 0, y: -jumpForce * 0.5 });
-                Matter.Body.applyForce(playerRightLeg, playerRightLeg.position, { x: 0, y: -jumpForce * 0.5 });
-            }
+        // Make limbs follow the torso's new velocity
+        for (let i = 0; i < ragdoll.bodies.length; i++) {
+            const part = ragdoll.bodies[i];
+            if (part === playerTorso) continue;
+            // This is a simplification. A better model might use constraints with motors.
+            // For now, we just ensure the limbs don't get left behind.
+            const newPartVelocity = {
+                x: newVelocityX + (part.velocity.x - currentVelocity.x),
+                y: newVelocityY + (part.velocity.y - currentVelocity.y)
+            };
+            Matter.Body.setVelocity(part, newPartVelocity);
         }
     };
 
