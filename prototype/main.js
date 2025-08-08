@@ -41,7 +41,7 @@ Character.initControls(world, mouse);
 let isGoal = false;
 Matter.Events.on(engine, 'beforeUpdate', (event) => {
     // Update character controls
-    Character.update(ground);
+    Character.update(ground, engine);
 
     // Goal check
     if (Matter.Bounds.overlaps(goalZone.bounds, targetBox.bounds)) {
