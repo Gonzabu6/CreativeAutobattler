@@ -36,10 +36,12 @@ const Stage = (() => {
             case 2:
                 // --- Stage 2: The Playground ---
                 // Seesaw
-                const seesawPlank = Matter.Bodies.rectangle(width / 2, height - 200, 500, 20);
+                const seesawGroup = Matter.Body.nextGroup(true);
+                const seesawPlank = Matter.Bodies.rectangle(width / 2, height - 200, 500, 20, { collisionFilter: { group: seesawGroup } });
                 const seesawPivot = Matter.Bodies.rectangle(width / 2, height - 150, 40, 20, {
                     isStatic: true,
-                    render: { fillStyle: '#86776B' }
+                    render: { fillStyle: '#86776B' },
+                    collisionFilter: { group: seesawGroup }
                 });
                 Matter.Composite.add(world, [seesawPlank, seesawPivot]);
                 const seesawConstraint = Matter.Constraint.create({
