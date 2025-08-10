@@ -23,8 +23,8 @@ function cleanup() {
 
 function resetGame() {
     cleanup();
-    document.getElementById('stage-select').style.display = 'block';
-    document.getElementById('back-to-select').style.display = 'none';
+    document.getElementById('stage-select').classList.remove('hidden');
+    document.getElementById('back-to-select').classList.add('hidden');
     const canvas = document.querySelector('canvas');
     if (canvas) canvas.remove(); // Remove old canvas
 }
@@ -63,7 +63,7 @@ function startGame(stageId) {
     const mouse = Mouse.create(render.canvas);
 
     // --- Create Stage and Character ---
-    const { ground, targetBox, goalZone } = Stage.create(stageId, world, canvasWidth, canvasHeight);
+    const { ground, targetBox, goalZone, fanVent } = Stage.create(stageId, world, canvasWidth, canvasHeight);
     Character.create(150, canvasHeight - 200, world);
     Character.initControls(world, mouse);
 
@@ -71,6 +71,17 @@ function startGame(stageId) {
     let isGoal = false;
     Matter.Events.on(engine, 'beforeUpdate', (event) => {
         Character.update(ground, engine);
+
+        // Fan logic
+        if (fanVent) {
+            const bodiesInFan = Matter.Query.region(Composite.allBodies(world), fanVent.bounds);
+            bodiesInFan.forEach(body => {
+                if (!body.isStatic) {
+                    Matter.Body.applyForce(body, body.position, { x: 0, y: -0.02 }); // Increased fan force
+                }
+            });
+        }
+
         if (goalZone && targetBox && Matter.Bounds.overlaps(goalZone.bounds, targetBox.bounds)) {
             isGoal = true;
         } else {
@@ -93,12 +104,13 @@ function startGame(stageId) {
     });
 
     // --- UI Visibility ---
-    document.getElementById('stage-select').style.display = 'none';
-    document.getElementById('back-to-select').style.display = 'block';
+    document.getElementById('stage-select').classList.add('hidden');
+    document.getElementById('back-to-select').classList.remove('hidden');
 }
 
 // --- Initial Setup ---
 window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('back-to-select').classList.add('hidden');
     document.getElementById('stage1').addEventListener('click', () => startGame(1));
     document.getElementById('stage2').addEventListener('click', () => startGame(2));
     document.getElementById('back-to-select').addEventListener('click', resetGame);

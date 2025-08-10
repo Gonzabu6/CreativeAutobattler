@@ -36,27 +36,29 @@ const Stage = (() => {
             case 2:
                 // --- Stage 2: The Playground ---
                 // Seesaw
-                const seesawPlank = Matter.Bodies.rectangle(width / 2, height - 150, 500, 20);
-                const seesawPivot = Matter.Bodies.rectangle(width / 2, height - 150, 20, 20, {
+                const seesawPlank = Matter.Bodies.rectangle(width / 2, height - 200, 500, 20);
+                const seesawPivot = Matter.Bodies.rectangle(width / 2, height - 150, 40, 20, {
                     isStatic: true,
                     render: { fillStyle: '#86776B' }
                 });
                 Matter.Composite.add(world, [seesawPlank, seesawPivot]);
                 const seesawConstraint = Matter.Constraint.create({
                     bodyA: seesawPlank,
-                    pointB: { x: seesawPivot.position.x, y: seesawPivot.position.y },
-                    stiffness: 1,
+                    bodyB: seesawPivot,
+                    stiffness: 0.9,
                     length: 0
                 });
                 Matter.Composite.add(world, seesawConstraint);
 
-                // Fan area (visual only in stage.js, logic in main.js)
-                const fanArea = Matter.Bodies.rectangle(150, height - 90, 200, 120, {
+                // Fan (floor vent style)
+                const fanVent = Matter.Bodies.rectangle(150, height - 45, 200, 30, {
                     isStatic: true,
                     isSensor: true,
                     render: { fillStyle: 'rgba(135, 206, 235, 0.4)' } // Sky blue
                 });
-                Matter.Composite.add(world, fanArea);
+                const fanWallLeft = Matter.Bodies.rectangle(50, height - 90, 20, 120, { isStatic: true });
+                const fanWallRight = Matter.Bodies.rectangle(250, height - 90, 20, 120, { isStatic: true });
+                Matter.Composite.add(world, [fanVent, fanWallLeft, fanWallRight]);
 
                 // Some boxes to play with
                 const box1 = Matter.Bodies.rectangle(width / 2 - 100, 100, 50, 50);
@@ -68,12 +70,12 @@ const Stage = (() => {
                 goalZone = Matter.Bodies.rectangle(-100, -100, 1, 1, {isStatic: true, isSensor: true});
                 break;
         }
-        let fanArea = null; // Fan area is specific to stage 2
+        let fanVent = null; // Fan vent is specific to stage 2
         if (stageId === 2) {
-             fanArea = Matter.Composite.allBodies(world).find(body => body.render.fillStyle === 'rgba(135, 206, 235, 0.4)');
+             fanVent = Matter.Composite.allBodies(world).find(body => body.render.fillStyle === 'rgba(135, 206, 235, 0.4)');
         }
 
-        return { ground, targetBox, goalZone, fanArea };
+        return { ground, targetBox, goalZone, fanVent };
     };
 
     return {
