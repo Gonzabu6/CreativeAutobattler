@@ -41,7 +41,12 @@ const Character = (() => {
 
         window.addEventListener('mousedown', (e) => {
             if (grabConstraint) return;
-            const armToUse = (Math.random() > 0.5) ? leftArm : rightArm;
+
+            const mousePos = mouse.position;
+            const distToLeftArm = Matter.Vector.magnitude(Matter.Vector.sub(mousePos, leftArm.position));
+            const distToRightArm = Matter.Vector.magnitude(Matter.Vector.sub(mousePos, rightArm.position));
+            const armToUse = distToLeftArm < distToRightArm ? leftArm : rightArm;
+
             const allBodies = Matter.Composite.allBodies(world);
 
             const direction = Matter.Vector.normalise(Matter.Vector.sub(mouse.position, torso.position));

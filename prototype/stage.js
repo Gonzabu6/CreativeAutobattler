@@ -10,6 +10,33 @@ const Stage = (() => {
         let targetBox, goalZone, fanVent;
 
         switch (stageId) {
+            case 3: {
+                // --- Stage 3: Breakable Wall ---
+                const wallStack = Matter.Composites.stack(width / 2, height - 250, 4, 6, 0, 0, (x, y) => {
+                    return Matter.Bodies.rectangle(x, y, 50, 30, {
+                        render: { fillStyle: '#b08a76' }
+                    });
+                });
+                wallStack.bodies.forEach(b => { b.label = 'brick'; });
+                wallStack.constraints.forEach(c => { c.label = 'brickConstraint'; });
+                Matter.Composite.add(world, wallStack);
+
+                // Add a heavy ball to break the wall
+                const heavyBall = Matter.Bodies.circle(200, height - 300, 40, { density: 0.05, render: {fillStyle: '#5D4037'} });
+                Matter.Composite.add(world, heavyBall);
+
+                targetBox = Matter.Bodies.rectangle(width - 250, height - 65, 60, 60, {
+                    friction: 0.3,
+                    render: { fillStyle: '#C7B0E8' } // Light purple
+                });
+                goalZone = Matter.Bodies.rectangle(width - 150, height - 90, 300, 120, {
+                    isStatic: true,
+                    isSensor: true,
+                    render: { fillStyle: 'rgba(144, 238, 144, 0.5)' }
+                });
+                Matter.Composite.add(world, [targetBox, goalZone]);
+                break;
+            }
             case 1:
                 // --- Stage 1: The Wall ---
                 targetBox = Matter.Bodies.rectangle(450, height - 65, 60, 60, {

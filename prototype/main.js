@@ -10,6 +10,7 @@ let engine;
 let world;
 let render;
 let runner;
+let currentStageId = null;
 
 function cleanup() {
     if (runner) Runner.stop(runner);
@@ -23,11 +24,13 @@ function cleanup() {
 
 function resetGame() {
     cleanup();
+    currentStageId = null;
     document.getElementById('stage-select').classList.remove('hidden');
     document.getElementById('back-to-select').classList.add('hidden');
 }
 
 function startGame(stageId) {
+    currentStageId = stageId;
     cleanup();
 
     // --- Engine & World ---
@@ -66,6 +69,23 @@ function startGame(stageId) {
 
     // --- Game Loop ---
     let isGoal = false;
+    Matter.Events.on(engine, 'collisionStart', event => {
+        const pairs = event.pairs;
+        for (const pair of pairs) {
+            const { bodyA, bodyB } = pair;
+            if (bodyA.label === 'brick' || bodyB.label === 'brick') {
+                const impulse = pair.collision.impulse;
+                const magnitude = Math.sqrt(impulse.x * impulse.x + impulse.y * impulse.y);
+                if (magnitude > 20) {
+                    const brickConstraints = Composite.allConstraints(world).filter(c => c.label === 'brickConstraint');
+                    if (brickConstraints.length > 0) {
+                        Matter.Composite.remove(world, brickConstraints);
+                    }
+                }
+            }
+        }
+    });
+
     Matter.Events.on(engine, 'beforeUpdate', (event) => {
         Character.update(stageElements.ground, engine);
 
@@ -114,5 +134,12 @@ window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('back-to-select').classList.add('hidden');
     document.getElementById('stage1').addEventListener('click', () => startGame(1));
     document.getElementById('stage2').addEventListener('click', () => startGame(2));
+    document.getElementById('stage3').addEventListener('click', () => startGame(3));
     document.getElementById('back-to-select').addEventListener('click', resetGame);
+
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'KeyR' && currentStageId !== null) {
+            startGame(currentStageId);
+        }
+    });
 });
