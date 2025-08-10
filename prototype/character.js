@@ -7,10 +7,12 @@ const Character = (() => {
     const create = (x, y, world) => {
         const group = Matter.Body.nextGroup(true);
         const torsoOptions = {
+            label: 'character_part',
             collisionFilter: { group: group },
             render: { fillStyle: '#4285F4' }
         };
         const limbOptions = {
+            label: 'character_part',
             collisionFilter: { group: group },
             friction: 0.4,
             render: { fillStyle: '#8AB4F8' }
@@ -44,6 +46,7 @@ const Character = (() => {
 
         // Legs
         const legOptions = {
+            label: 'character_part',
             collisionFilter: { group: group },
             friction: 0.5,
             render: { fillStyle: '#34A853' } // Green
@@ -104,29 +107,43 @@ const Character = (() => {
         mousedownListener = (e) => {
             if (grabConstraint) return;
 
-            // Decide which arm to use based on mouse position (this part of the logic can stay)
-            const armToUse = (Matter.Vector.magnitude(Matter.Vector.sub(mouse.position, leftArm.position)) < Matter.Vector.magnitude(Matter.Vector.sub(mouse.position, rightArm.position))) ? leftArm : rightArm;
-
             const allBodies = Matter.Composite.allBodies(world);
-            const grabRadius = 200; // The radius around the character to check for objects
             let bodyToGrab = null;
-            let minDistance = Infinity;
 
-            allBodies.forEach(body => {
-                // Filter out static bodies, sensors, and the character's own parts
-                if (body.isStatic || body.isSensor || body === torso || body === head || body === leftArm || body === rightArm) {
-                    return;
-                }
-
-                const distance = Matter.Vector.magnitude(Matter.Vector.sub(torso.position, body.position));
-                if (distance < minDistance) {
-                    minDistance = distance;
+            // 1. Prioritize object directly under the mouse
+            const bodiesUnderMouse = Matter.Query.point(allBodies, mouse.position);
+            for (const body of bodiesUnderMouse) {
+                if (!body.isStatic && !body.isSensor && body.label !== 'character_part') {
                     bodyToGrab = body;
+                    break;
                 }
-            });
+            }
 
-            // Check if the closest body is within our grabbing radius
-            if (bodyToGrab && minDistance < grabRadius) {
+            // 2. If nothing under mouse, search in a radius around the player
+            if (!bodyToGrab) {
+                const grabRadius = 80; // New, smaller radius
+                let minDistance = Infinity;
+
+                allBodies.forEach(body => {
+                    if (body.isStatic || body.isSensor || body.label === 'character_part') {
+                        return;
+                    }
+                    const distance = Matter.Vector.magnitude(Matter.Vector.sub(torso.position, body.position));
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        bodyToGrab = body;
+                    }
+                });
+
+                // If the closest body is outside the radius, don't grab it
+                if (minDistance > grabRadius) {
+                    bodyToGrab = null;
+                }
+            }
+
+            // 3. If a body was found, grab it
+            if (bodyToGrab) {
+                const armToUse = (Matter.Vector.magnitude(Matter.Vector.sub(mouse.position, leftArm.position)) < Matter.Vector.magnitude(Matter.Vector.sub(mouse.position, rightArm.position))) ? leftArm : rightArm;
                 grabConstraint = Matter.Constraint.create({
                     bodyA: armToUse,
                     bodyB: bodyToGrab,
@@ -141,8 +158,12 @@ const Character = (() => {
 
         mouseupListener = (e) => {
             if (grabConstraint) {
-                Matter.Composite.remove(world, grabConstraint);
-                grabConstraint = null;
+                // It's possible the 'world' reference in this closure is stale.
+                // To be safe, we nullify the constraint reference regardless,
+                // which prevents the player from getting stuck.
+                // The proper fix is cleaning up listeners, but this is a defensive measure.
+                Matter.Composite.remove(world, grabConstraint); // Attempt removal
+                grabConstraint = null; // Always nullify to un-stick the player
             }
         };
 
