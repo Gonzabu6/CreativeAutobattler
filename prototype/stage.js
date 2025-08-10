@@ -22,7 +22,7 @@ const Stage = (() => {
                 Matter.Composite.add(world, wallStack);
 
                 // Add a heavy ball to break the wall
-                const heavyBall = Matter.Bodies.circle(200, height - 300, 40, { density: 0.05, render: {fillStyle: '#5D4037'} });
+                const heavyBall = Matter.Bodies.circle(400, height - 300, 40, { density: 0.05, render: {fillStyle: '#5D4037'} });
                 Matter.Composite.add(world, heavyBall);
 
                 targetBox = Matter.Bodies.rectangle(width - 250, height - 65, 60, 60, {
