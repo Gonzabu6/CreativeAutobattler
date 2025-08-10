@@ -10,20 +10,42 @@ let engine;
 let world;
 let render;
 let runner;
-let mouse;
+
+function cleanup() {
+    if (runner) Runner.stop(runner);
+    if (render) {
+        Render.stop(render);
+        render.canvas.remove();
+        render.textures = {};
+    }
+    if (engine) Engine.clear(engine);
+}
+
+function resetGame() {
+    cleanup();
+    document.getElementById('stage-select').style.display = 'block';
+    document.getElementById('back-to-select').style.display = 'none';
+    const canvas = document.querySelector('canvas');
+    if (canvas) canvas.remove(); // Remove old canvas
+}
 
 function startGame(stageId) {
-    // --- Engine ---
+    // Ensure a clean state
+    cleanup();
+
+    // --- Engine & World ---
     engine = Engine.create();
     world = engine.world;
     const canvasWidth = window.innerWidth;
     const canvasHeight = window.innerHeight;
 
     // --- Renderer ---
+    const canvas = document.createElement('canvas');
+    document.body.appendChild(canvas);
     render = Render.create({
         element: document.body,
+        canvas: canvas,
         engine: engine,
-        canvas: document.querySelector('canvas'), // Use existing canvas
         options: {
             width: canvasWidth,
             height: canvasHeight,
@@ -31,7 +53,6 @@ function startGame(stageId) {
             background: '#f0f0f0'
         }
     });
-
     Render.run(render);
 
     // --- Runner ---
@@ -39,10 +60,10 @@ function startGame(stageId) {
     Runner.run(runner, engine);
 
     // --- Mouse ---
-    mouse = Mouse.create(render.canvas);
+    const mouse = Mouse.create(render.canvas);
 
     // --- Create Stage and Character ---
-    const { ground, targetBox, goalZone, fanArea } = Stage.create(stageId, world, canvasWidth, canvasHeight);
+    const { ground, targetBox, goalZone } = Stage.create(stageId, world, canvasWidth, canvasHeight);
     Character.create(150, canvasHeight - 200, world);
     Character.initControls(world, mouse);
 
@@ -50,51 +71,35 @@ function startGame(stageId) {
     let isGoal = false;
     Matter.Events.on(engine, 'beforeUpdate', (event) => {
         Character.update(ground, engine);
-
-        // Fan logic
-        if (fanArea) {
-            const bodiesInFan = Matter.Query.region(Composite.allBodies(world), fanArea.bounds);
-            bodiesInFan.forEach(body => {
-                if (!body.isStatic) {
-                    Matter.Body.applyForce(body, body.position, { x: 0, y: -0.01 });
-                }
-            });
-        }
-
         if (goalZone && targetBox && Matter.Bounds.overlaps(goalZone.bounds, targetBox.bounds)) {
             isGoal = true;
-            goalZone.render.fillStyle = 'rgba(255, 215, 0, 0.7)';
         } else {
             isGoal = false;
-            goalZone.render.fillStyle = 'rgba(144, 238, 144, 0.5)';
         }
     });
 
-    // --- UI Rendering (Goal Text Only) ---
+    // --- UI Rendering ---
     Matter.Events.on(engine, 'afterRender', (event) => {
         if (isGoal) {
+            goalZone.render.fillStyle = 'rgba(255, 215, 0, 0.7)';
             const ctx = render.context;
             ctx.fillStyle = '#FFD700';
             ctx.font = 'bold 80px Arial';
             ctx.textAlign = 'center';
             ctx.fillText('GOAL!', canvasWidth / 2, canvasHeight / 2);
+        } else if (goalZone) {
+             goalZone.render.fillStyle = 'rgba(144, 238, 144, 0.5)';
         }
     });
 
-    // Hide stage select UI
+    // --- UI Visibility ---
     document.getElementById('stage-select').style.display = 'none';
+    document.getElementById('back-to-select').style.display = 'block';
 }
 
 // --- Initial Setup ---
 window.addEventListener('DOMContentLoaded', () => {
-    // Create a canvas element for the renderer
-    const canvas = document.createElement('canvas');
-    document.body.appendChild(canvas);
-
-    document.getElementById('stage1').addEventListener('click', () => {
-        startGame(1);
-    });
-    document.getElementById('stage2').addEventListener('click', () => {
-        startGame(2);
-    });
+    document.getElementById('stage1').addEventListener('click', () => startGame(1));
+    document.getElementById('stage2').addEventListener('click', () => startGame(2));
+    document.getElementById('back-to-select').addEventListener('click', resetGame);
 });
