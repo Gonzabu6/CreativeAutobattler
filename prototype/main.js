@@ -35,7 +35,9 @@ function startGame(stageId) {
     cleanup();
 
     // --- Engine & World ---
+    let wallBroken = false; // Flag to ensure we only break the wall once
     engine = Engine.create();
+    engine.enableSleeping = true;
     world = engine.world;
     const canvasWidth = window.innerWidth;
     const canvasHeight = window.innerHeight;
@@ -65,22 +67,29 @@ function startGame(stageId) {
 
     // --- Create Stage and Character ---
     const stageElements = Stage.create(stageId, world, canvasWidth, canvasHeight);
-    Character.create(150, canvasHeight - 200, world);
+    Character.create(150, canvasHeight - 400, world); // Raise character spawn height
     Character.initControls(world, mouse);
 
     // --- Game Loop ---
     let isGoal = false;
     Matter.Events.on(engine, 'collisionStart', event => {
+        if (wallBroken) return; // Don't do anything if wall is already broken
+
         const pairs = event.pairs;
         for (const pair of pairs) {
             const { bodyA, bodyB } = pair;
             if (bodyA.label === 'brick' || bodyB.label === 'brick') {
                 const impulse = pair.collision.impulse;
                 const magnitude = Math.sqrt(impulse.x * impulse.x + impulse.y * impulse.y);
+
                 if (magnitude > 20) {
                     const brickConstraints = Composite.allConstraints(world).filter(c => c.label === 'brickConstraint');
                     if (brickConstraints.length > 0) {
-                        Matter.Composite.remove(world, brickConstraints);
+                        wallBroken = true; // Set the flag
+                        // Defer removal to avoid modifying the world during collision event
+                        setTimeout(() => {
+                            Matter.Composite.remove(world, brickConstraints);
+                        }, 0);
                     }
                 }
             }
@@ -95,7 +104,7 @@ function startGame(stageId) {
             const bodiesInFan = Matter.Query.region(Composite.allBodies(world), stageElements.fanVent.bounds);
             bodiesInFan.forEach(body => {
                 if (!body.isStatic) {
-                    Matter.Body.applyForce(body, body.position, { x: 0, y: -0.5 }); // Significantly increased fan force
+                    Matter.Body.applyForce(body, body.position, { x: 0, y: -2.5 }); // Dramatically increased fan force
                 }
             });
         }
