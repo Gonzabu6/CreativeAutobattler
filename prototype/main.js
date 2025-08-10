@@ -20,6 +20,7 @@ function cleanup() {
         render.textures = {};
     }
     if (engine) Engine.clear(engine);
+    Character.cleanupControls();
 }
 
 function resetGame() {
@@ -94,7 +95,7 @@ function startGame(stageId) {
             const bodiesInFan = Matter.Query.region(Composite.allBodies(world), stageElements.fanVent.bounds);
             bodiesInFan.forEach(body => {
                 if (!body.isStatic) {
-                    Matter.Body.applyForce(body, body.position, { x: 0, y: -0.05 }); // Increased fan force
+                    Matter.Body.applyForce(body, body.position, { x: 0, y: -0.5 }); // Significantly increased fan force
                 }
             });
         }
@@ -109,9 +110,6 @@ function startGame(stageId) {
 
     // --- UI Rendering ---
     Matter.Events.on(engine, 'afterRender', (event) => {
-        // Draw visual character parts
-        Character.draw(render.context);
-
         if (isGoal) {
             stageElements.goalZone.render.fillStyle = 'rgba(255, 215, 0, 0.7)';
             const ctx = render.context;

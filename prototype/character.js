@@ -1,6 +1,6 @@
 const Character = (() => {
     let torso, head, leftArm, rightArm;
-    let visualLegs = { left: {x:0, y:0}, right: {x:0, y:0} };
+    let leftThigh, leftShin, rightThigh, rightShin;
     let grabConstraint = null;
     const keys = {};
 
@@ -23,51 +23,110 @@ const Character = (() => {
         leftArm = Matter.Bodies.rectangle(x - 50, y - 20, 20, 80, limbOptions);
         rightArm = Matter.Bodies.rectangle(x + 50, y - 20, 20, 80, limbOptions);
 
-        const headConstraint = Matter.Constraint.create({ bodyA: torso, bodyB: head, pointA: {x:0, y:-55}, stiffness: 0.7, length: 25 });
-        const leftShoulder = Matter.Constraint.create({ bodyA: torso, bodyB: leftArm, pointA: {x:-30, y:-35}, stiffness: 0.5, length: 20 });
-        const rightShoulder = Matter.Constraint.create({ bodyA: torso, bodyB: rightArm, pointA: {x:30, y:-35}, stiffness: 0.5, length: 20 });
+        const headConstraint = Matter.Constraint.create({
+            bodyA: torso, bodyB: head, pointA: {x:0, y:-55},
+            stiffness: 0.9,
+            damping: 0.3,
+            length: 25
+        });
+        const leftShoulder = Matter.Constraint.create({
+            bodyA: torso, bodyB: leftArm, pointA: {x:-30, y:-35},
+            pointB: { x: 0, y: -40 },
+            stiffness: 0.8,
+            length: 20
+        });
+        const rightShoulder = Matter.Constraint.create({
+            bodyA: torso, bodyB: rightArm, pointA: {x:30, y:-35},
+            pointB: { x: 0, y: -40 },
+            stiffness: 0.8,
+            length: 20
+        });
+
+        // Legs
+        const legOptions = {
+            collisionFilter: { group: group },
+            friction: 0.5,
+            render: { fillStyle: '#34A853' } // Green
+        };
+        leftThigh = Matter.Bodies.rectangle(x - 20, y + 85, 25, 50, legOptions);
+        rightThigh = Matter.Bodies.rectangle(x + 20, y + 85, 25, 50, legOptions);
+        leftShin = Matter.Bodies.rectangle(x - 20, y + 145, 25, 60, legOptions);
+        rightShin = Matter.Bodies.rectangle(x + 20, y + 145, 25, 60, legOptions);
+
+        const leftHip = Matter.Constraint.create({
+            bodyA: torso, bodyB: leftThigh,
+            pointA: { x: -20, y: 55 },
+            pointB: { x: 0, y: -25 },
+            stiffness: 0.8, length: 10
+        });
+        const rightHip = Matter.Constraint.create({
+            bodyA: torso, bodyB: rightThigh,
+            pointA: { x: 20, y: 55 },
+            pointB: { x: 0, y: -25 },
+            stiffness: 0.8, length: 10
+        });
+        const leftKnee = Matter.Constraint.create({
+            bodyA: leftThigh, bodyB: leftShin,
+            pointA: { x: 0, y: 25 },
+            pointB: { x: 0, y: -30 },
+            stiffness: 0.9, length: 10
+        });
+        const rightKnee = Matter.Constraint.create({
+            bodyA: rightThigh, bodyB: rightShin,
+            pointA: { x: 0, y: 25 },
+            pointB: { x: 0, y: -30 },
+            stiffness: 0.9, length: 10
+        });
 
         const characterComposite = Matter.Composite.create({
-            bodies: [torso, head, leftArm, rightArm],
-            constraints: [headConstraint, leftShoulder, rightShoulder]
+            bodies: [torso, head, leftArm, rightArm, leftThigh, rightThigh, leftShin, rightShin],
+            constraints: [headConstraint, leftShoulder, rightShoulder, leftHip, rightHip, leftKnee, rightKnee]
         });
 
         Matter.Composite.add(world, characterComposite);
     };
 
-    const initControls = (world, mouse) => {
-        window.addEventListener('keydown', (e) => { keys[e.code] = true; });
-        window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+    let keydownListener, keyupListener, mousedownListener, mouseupListener;
 
-        window.addEventListener('mousedown', (e) => {
+    const cleanupControls = () => {
+        if (keydownListener) window.removeEventListener('keydown', keydownListener);
+        if (keyupListener) window.removeEventListener('keyup', keyupListener);
+        if (mousedownListener) window.removeEventListener('mousedown', mousedownListener);
+        if (mouseupListener) window.removeEventListener('mouseup', mouseupListener);
+    };
+
+    const initControls = (world, mouse) => {
+        cleanupControls(); // Clean up any old listeners first
+
+        keydownListener = (e) => { keys[e.code] = true; };
+        keyupListener = (e) => { keys[e.code] = false; };
+
+        mousedownListener = (e) => {
             if (grabConstraint) return;
 
-            const mousePos = mouse.position;
-            const distToLeftArm = Matter.Vector.magnitude(Matter.Vector.sub(mousePos, leftArm.position));
-            const distToRightArm = Matter.Vector.magnitude(Matter.Vector.sub(mousePos, rightArm.position));
-            const armToUse = distToLeftArm < distToRightArm ? leftArm : rightArm;
+            // Decide which arm to use based on mouse position (this part of the logic can stay)
+            const armToUse = (Matter.Vector.magnitude(Matter.Vector.sub(mouse.position, leftArm.position)) < Matter.Vector.magnitude(Matter.Vector.sub(mouse.position, rightArm.position))) ? leftArm : rightArm;
 
             const allBodies = Matter.Composite.allBodies(world);
-
-            const direction = Matter.Vector.normalise(Matter.Vector.sub(mouse.position, torso.position));
-            const rayStart = { x: torso.position.x, y: torso.position.y };
-            const rayEnd = { x: rayStart.x + direction.x * 350, y: rayStart.y + direction.y * 350 };
-
-            const bodiesInRay = Matter.Query.ray(allBodies, rayStart, rayEnd);
+            const grabRadius = 200; // The radius around the character to check for objects
             let bodyToGrab = null;
             let minDistance = Infinity;
 
-            bodiesInRay.forEach(collision => {
-                const body = collision.body;
-                 if (body.isStatic || body.isSensor || body === torso || body === head || body === leftArm || body === rightArm) return;
-                 const distance = Matter.Vector.magnitude(Matter.Vector.sub(torso.position, body.position));
-                 if (distance < minDistance) {
-                     minDistance = distance;
-                     bodyToGrab = body;
-                 }
+            allBodies.forEach(body => {
+                // Filter out static bodies, sensors, and the character's own parts
+                if (body.isStatic || body.isSensor || body === torso || body === head || body === leftArm || body === rightArm) {
+                    return;
+                }
+
+                const distance = Matter.Vector.magnitude(Matter.Vector.sub(torso.position, body.position));
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    bodyToGrab = body;
+                }
             });
 
-            if (bodyToGrab) {
+            // Check if the closest body is within our grabbing radius
+            if (bodyToGrab && minDistance < grabRadius) {
                 grabConstraint = Matter.Constraint.create({
                     bodyA: armToUse,
                     bodyB: bodyToGrab,
@@ -76,16 +135,21 @@ const Character = (() => {
                     render: { strokeStyle: '#c44', lineWidth: 3 }
                 });
                 Matter.Composite.add(world, grabConstraint);
-                setTimeout(() => { if(grabConstraint) grabConstraint.length = 40; }, 100);
+                setTimeout(() => { if (grabConstraint) grabConstraint.length = 40; }, 100);
             }
-        });
+        };
 
-        window.addEventListener('mouseup', (e) => {
+        mouseupListener = (e) => {
             if (grabConstraint) {
                 Matter.Composite.remove(world, grabConstraint);
                 grabConstraint = null;
             }
-        });
+        };
+
+        window.addEventListener('keydown', keydownListener);
+        window.addEventListener('keyup', keyupListener);
+        window.addEventListener('mousedown', mousedownListener);
+        window.addEventListener('mouseup', mouseupListener);
     };
 
     const update = (ground, engine) => {
@@ -108,47 +172,36 @@ const Character = (() => {
         }
         Matter.Body.setVelocity(torso, { x: newVelocityX, y: newVelocityY });
 
-        // Visual legs animation
-        const walkCycle = engine.timing.timestamp * 0.01;
-        const stepLength = 30;
-        const stepHeight = 15;
-        const torsoBottomY = torso.position.y + 55;
+        // Physical legs animation
+        const isMoving = Math.abs(torso.velocity.x) > 1;
+        if (isMoving) {
+            const walkCycle = engine.timing.timestamp * 0.008;
+            const swingAmount = 0.6;
+            const targetLeftAngle = Math.sin(walkCycle) * swingAmount;
+            const targetRightAngle = Math.sin(walkCycle + Math.PI) * swingAmount;
 
-        let targetLeftX = torso.position.x - 15;
-        let targetRightX = torso.position.x + 15;
-        let targetLeftY = torsoBottomY;
-        let targetRightY = torsoBottomY;
+            const turnSpeed = 0.2;
+            Matter.Body.setAngularVelocity(leftThigh, (targetLeftAngle - leftThigh.angle) * turnSpeed);
+            Matter.Body.setAngularVelocity(rightThigh, (targetRightAngle - rightThigh.angle) * turnSpeed);
 
-        if (Math.abs(torso.velocity.x) > 1) {
-            targetLeftX += Math.cos(walkCycle) * stepLength;
-            targetRightX += Math.cos(walkCycle + Math.PI) * stepLength;
-            targetLeftY += Math.sin(walkCycle) * stepHeight;
-            targetRightY += Math.sin(walkCycle + Math.PI) * stepHeight;
+            // Try to keep shins from going backwards too much
+            const kneeBend = Math.max(0, Math.sin(walkCycle));
+            Matter.Body.setAngularVelocity(leftShin, (leftThigh.angle * 0.5 + kneeBend * 0.5 - leftShin.angle) * 0.1);
+            Matter.Body.setAngularVelocity(rightShin, (rightThigh.angle * 0.5 + kneeBend * 0.5 - rightShin.angle) * 0.1);
+        } else {
+            // Try to stand straight when not moving
+            const standSpeed = 0.1;
+            Matter.Body.setAngularVelocity(leftThigh, (0 - leftThigh.angle) * standSpeed);
+            Matter.Body.setAngularVelocity(rightThigh, (0 - rightThigh.angle) * standSpeed);
+            Matter.Body.setAngularVelocity(leftShin, (0 - leftShin.angle) * standSpeed);
+            Matter.Body.setAngularVelocity(rightShin, (0 - rightShin.angle) * standSpeed);
         }
-
-        const groundY = ground.position.y - 30;
-        visualLegs.left.x = targetLeftX;
-        visualLegs.left.y = Math.min(targetLeftY, groundY);
-        visualLegs.right.x = targetRightX;
-        visualLegs.right.y = Math.min(targetRightY, groundY);
     };
-
-    const draw = (context) => {
-        if(!torso) return;
-        context.beginPath();
-        context.moveTo(torso.position.x - 15, torso.position.y + 55);
-        context.lineTo(visualLegs.left.x, visualLegs.left.y);
-        context.moveTo(torso.position.x + 15, torso.position.y + 55);
-        context.lineTo(visualLegs.right.x, visualLegs.right.y);
-        context.strokeStyle = '#34A853'; // Green legs
-        context.lineWidth = 25;
-        context.stroke();
-    }
 
     return {
         create: create,
         initControls: initControls,
-        update: update,
-        draw: draw
+        cleanupControls: cleanupControls,
+        update: update
     };
 })();
