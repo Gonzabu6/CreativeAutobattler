@@ -5,63 +5,96 @@ const Engine = Matter.Engine,
       Mouse = Matter.Mouse,
       Composite = Matter.Composite;
 
-// --- Engine ---
-const engine = Engine.create();
-const world = engine.world;
-const canvasWidth = window.innerWidth;
-const canvasHeight = window.innerHeight;
+// --- Global variables ---
+let engine;
+let world;
+let render;
+let runner;
+let mouse;
 
-// --- Renderer ---
-const render = Render.create({
-    element: document.body,
-    engine: engine,
-    options: {
-        width: canvasWidth,
-        height: canvasHeight,
-        wireframes: false,
-        background: '#f0f0f0'
-    }
-});
+function startGame(stageId) {
+    // --- Engine ---
+    engine = Engine.create();
+    world = engine.world;
+    const canvasWidth = window.innerWidth;
+    const canvasHeight = window.innerHeight;
 
-Render.run(render);
+    // --- Renderer ---
+    render = Render.create({
+        element: document.body,
+        engine: engine,
+        canvas: document.querySelector('canvas'), // Use existing canvas
+        options: {
+            width: canvasWidth,
+            height: canvasHeight,
+            wireframes: false,
+            background: '#f0f0f0'
+        }
+    });
 
-// --- Runner ---
-const runner = Runner.create();
-Runner.run(runner, engine);
+    Render.run(render);
 
-// --- Mouse ---
-const mouse = Mouse.create(render.canvas);
+    // --- Runner ---
+    runner = Runner.create();
+    Runner.run(runner, engine);
 
-// --- Create Stage and Character ---
-const { ground, targetBox, goalZone } = Stage.create(world, canvasWidth, canvasHeight);
-Character.create(150, canvasHeight - 200, world); // Spawn higher
-Character.initControls(world, mouse);
+    // --- Mouse ---
+    mouse = Mouse.create(render.canvas);
 
-// --- Game Loop ---
-let isGoal = false;
-Matter.Events.on(engine, 'beforeUpdate', (event) => {
-    // Update character controls
-    Character.update(ground, engine);
+    // --- Create Stage and Character ---
+    const { ground, targetBox, goalZone, fanArea } = Stage.create(stageId, world, canvasWidth, canvasHeight);
+    Character.create(150, canvasHeight - 200, world);
+    Character.initControls(world, mouse);
 
-    // Goal check
-    if (Matter.Bounds.overlaps(goalZone.bounds, targetBox.bounds)) {
-        isGoal = true;
-        goalZone.render.fillStyle = 'rgba(255, 215, 0, 0.7)';
-    } else {
-        isGoal = false;
-        goalZone.render.fillStyle = 'rgba(144, 238, 144, 0.5)';
-    }
-});
+    // --- Game Loop ---
+    let isGoal = false;
+    Matter.Events.on(engine, 'beforeUpdate', (event) => {
+        Character.update(ground, engine);
 
-// --- UI Rendering (Goal Text Only) ---
-Matter.Events.on(engine, 'afterRender', (event) => {
-    const ctx = render.context;
+        // Fan logic
+        if (fanArea) {
+            const bodiesInFan = Matter.Query.region(Composite.allBodies(world), fanArea.bounds);
+            bodiesInFan.forEach(body => {
+                if (!body.isStatic) {
+                    Matter.Body.applyForce(body, body.position, { x: 0, y: -0.01 });
+                }
+            });
+        }
 
-    // Draw Goal Text
-    if (isGoal) {
-        ctx.fillStyle = '#FFD700';
-        ctx.font = 'bold 80px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('GOAL!', canvasWidth / 2, canvasHeight / 2);
-    }
+        if (goalZone && targetBox && Matter.Bounds.overlaps(goalZone.bounds, targetBox.bounds)) {
+            isGoal = true;
+            goalZone.render.fillStyle = 'rgba(255, 215, 0, 0.7)';
+        } else {
+            isGoal = false;
+            goalZone.render.fillStyle = 'rgba(144, 238, 144, 0.5)';
+        }
+    });
+
+    // --- UI Rendering (Goal Text Only) ---
+    Matter.Events.on(engine, 'afterRender', (event) => {
+        if (isGoal) {
+            const ctx = render.context;
+            ctx.fillStyle = '#FFD700';
+            ctx.font = 'bold 80px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('GOAL!', canvasWidth / 2, canvasHeight / 2);
+        }
+    });
+
+    // Hide stage select UI
+    document.getElementById('stage-select').style.display = 'none';
+}
+
+// --- Initial Setup ---
+window.addEventListener('DOMContentLoaded', () => {
+    // Create a canvas element for the renderer
+    const canvas = document.createElement('canvas');
+    document.body.appendChild(canvas);
+
+    document.getElementById('stage1').addEventListener('click', () => {
+        startGame(1);
+    });
+    document.getElementById('stage2').addEventListener('click', () => {
+        startGame(2);
+    });
 });
