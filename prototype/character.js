@@ -15,13 +15,18 @@ const Character = (() => {
 
         const leftShoulder = Matter.Constraint.create({ bodyA: torso, bodyB: leftArm, pointA: { x: -20, y: -30 }, pointB: { x: 0, y: -20 }, stiffness: 1.0, length: 20 });
         const rightShoulder = Matter.Constraint.create({ bodyA: torso, bodyB: rightArm, pointA: { x: 20, y: -30 }, pointB: { x: 0, y: -20 }, stiffness: 1.0, length: 20 });
-        leftHip = Matter.Constraint.create({ bodyA: torso, bodyB: leftLeg, pointA: { x: -15, y: 40 }, pointB: { x: 0, y: -35 }, stiffness: 0.8, length: 15 });
-        rightHip = Matter.Constraint.create({ bodyA: torso, bodyB: rightLeg, pointA: { x: 15, y: 40 }, pointB: { x: 0, y: -35 }, stiffness: 0.8, length: 15 });
+        leftHip = Matter.Constraint.create({ bodyA: torso, bodyB: leftLeg, pointA: { x: -15, y: 40 }, pointB: { x: 0, y: -35 }, stiffness: 0.6, length: 25 });
+        rightHip = Matter.Constraint.create({ bodyA: torso, bodyB: rightLeg, pointA: { x: 15, y: 40 }, pointB: { x: 0, y: -35 }, stiffness: 0.6, length: 25 });
+        const neck = Matter.Constraint.create({
+            bodyA: torso, bodyB: head,
+            pointA: {x:0, y:-35}, pointB: {x:0, y:-15},
+            stiffness: 0.9, damping: 0.1, length: 10
+        });
 
         // --- Make torso unrotatable ---
         Matter.Body.setInertia(torso, Infinity);
 
-        ragdoll = Matter.Composite.create({ bodies: [head, torso, leftArm, rightArm, leftLeg, rightLeg], constraints: [leftShoulder, rightShoulder, leftHip, rightHip] });
+        ragdoll = Matter.Composite.create({ bodies: [head, torso, leftArm, rightArm, leftLeg, rightLeg], constraints: [neck, leftShoulder, rightShoulder, leftHip, rightHip] });
         Matter.Composite.add(world, ragdoll);
     };
 
@@ -44,7 +49,7 @@ const Character = (() => {
                 }
             }
             if (bodyToGrab) {
-                const reach = 100;
+                const reach = 150; // Increased reach
                 const distToLeftArm = Matter.Vector.magnitude(Matter.Vector.sub(ragdoll.bodies[2].position, bodyToGrab.position));
                 const distToRightArm = Matter.Vector.magnitude(Matter.Vector.sub(ragdoll.bodies[3].position, bodyToGrab.position));
                 let grabArm = null;
@@ -102,51 +107,35 @@ const Character = (() => {
         // Apply the new velocity to the torso
         Matter.Body.setVelocity(playerTorso, { x: newVelocityX, y: newVelocityY });
 
-        // Procedural walking animation
-        const playerLeftLeg = ragdoll.bodies[4];
-        const playerRightLeg = ragdoll.bodies[5];
-        const walkCycle = engine.timing.timestamp * 0.008;
-        const swingAmount = 0.5;
-        const legTorque = 0.001;
+        // Procedural walking animation using constraint length
+        const walkCycle = engine.timing.timestamp * 0.05;
+        const walkHeight = 10; // How high the leg lifts
 
         if (Math.abs(newVelocityX) > 0.1) {
             // Walking
-            const targetAngleLeft = Math.sin(walkCycle) * swingAmount;
-            const targetAngleRight = Math.sin(walkCycle + Math.PI) * swingAmount;
-
-            // Apply torque to move legs towards target angle
-            if (playerLeftLeg.angle < targetAngleLeft) Matter.Body.applyForce(playerLeftLeg, playerLeftLeg.position, {x: legTorque, y:0});
-            else Matter.Body.applyForce(playerLeftLeg, playerLeftLeg.position, {x: -legTorque, y:0});
-
-            if (playerRightLeg.angle < targetAngleRight) Matter.Body.applyForce(playerRightLeg, playerRightLeg.position, {x: legTorque, y:0});
-            else Matter.Body.applyForce(playerRightLeg, playerRightLeg.position, {x: -legTorque, y:0});
-
+            leftHip.length = 25 + Math.sin(walkCycle) * walkHeight;
+            rightHip.length = 25 + Math.sin(walkCycle + Math.PI) * walkHeight;
         } else {
-            // Standing still - try to bring legs to neutral
-            if (Math.abs(playerLeftLeg.angle) > 0.05) Matter.Body.applyForce(playerLeftLeg, playerLeftLeg.position, {x: playerLeftLeg.angle > 0 ? -legTorque : legTorque, y:0});
-            if (Math.abs(playerRightLeg.angle) > 0.05) Matter.Body.applyForce(playerRightLeg, playerRightLeg.position, {x: playerRightLeg.angle > 0 ? -legTorque : legTorque, y:0});
+            // Standing still
+            leftHip.length = 25;
+            rightHip.length = 25;
         }
 
         // Keep torso upright
         Matter.Body.setAngle(playerTorso, 0);
 
-        // Keep head fixed to torso
-        const head = ragdoll.bodies[0];
-        Matter.Body.setPosition(head, { x: playerTorso.position.x, y: playerTorso.position.y - 55 });
-        Matter.Body.setAngle(head, 0);
-
-
-        // Make limbs follow the torso's new velocity
+        // Make limbs follow the torso's new position
+        const torsoMovement = {
+            x: playerTorso.position.x - playerTorso.positionPrev.x,
+            y: playerTorso.position.y - playerTorso.positionPrev.y
+        };
         for (let i = 0; i < ragdoll.bodies.length; i++) {
             const part = ragdoll.bodies[i];
             if (part === playerTorso) continue;
-            // This is a simplification. A better model might use constraints with motors.
-            // For now, we just ensure the limbs don't get left behind.
-            const newPartVelocity = {
-                x: newVelocityX + (part.velocity.x - currentVelocity.x),
-                y: newVelocityY + (part.velocity.y - currentVelocity.y)
-            };
-            Matter.Body.setVelocity(part, newPartVelocity);
+            Matter.Body.setPosition(part, {
+                x: part.position.x + torsoMovement.x,
+                y: part.position.y + torsoMovement.y
+            });
         }
     };
 
