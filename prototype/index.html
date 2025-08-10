@@ -20,24 +20,40 @@
         top: 0;
         left: 0;
         width: 100%;
-        padding: 10px;
+        padding: 10px 20px;
         box-sizing: border-box;
         display: flex;
         justify-content: space-between;
+        align-items: center;
         color: #1a237e; /* Darker Blue */
         font-family: Arial, sans-serif;
         font-size: 18px;
         pointer-events: none; /* Allows mouse events to pass through to the canvas */
     }
-    .ui-overlay .title {
+    .ui-left {
+        text-align: left;
+    }
+    .ui-right {
+        text-align: right;
+    }
+    .title {
         font-weight: bold;
+        font-size: 20px;
+    }
+    .goal {
+        font-style: italic;
     }
   </style>
 </head>
 <body>
   <div class="ui-overlay">
-      <div class="title">Physics Puzzle (仮) - v0.5</div>
-      <div class="controls">A/D: Move, W/Space: Jump, Hold Click: Grab</div>
+      <div class="ui-left">
+          <div class="title">Physics Puzzle (仮) - v0.9</div>
+          <div class="goal">Goal: 紫の箱を緑のエリアに入れよう！</div>
+      </div>
+      <div class="ui-right">
+          <div class="controls">A/D: Move, W/Space: Jump, Hold Click: Grab</div>
+      </div>
   </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
   <script src="character.js"></script>

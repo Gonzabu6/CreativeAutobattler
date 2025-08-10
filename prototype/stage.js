@@ -20,11 +20,11 @@ const Stage = (() => {
             render: { fillStyle: '#C7B0E8' } // Light purple
         });
         // Obstacle Boxes (Either side of the wall)
-        const obstacleBox1 = Matter.Bodies.rectangle(750, height - 65, 80, 80, {
+        const obstacleBox1 = Matter.Bodies.rectangle(550, height - 65, 80, 80, {
             friction: 0.3,
             render: { fillStyle: '#E8C7B0' } // Light orange
         });
-         const obstacleBox2 = Matter.Bodies.rectangle(550, height - 250, 80, 80, {
+         const obstacleBox2 = Matter.Bodies.rectangle(750, height - 65, 80, 80, {
             friction: 0.3,
             render: { fillStyle: '#E8C7B0' } // Light orange
         });
