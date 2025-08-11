@@ -12,6 +12,8 @@ let render;
 let runner;
 let currentStageId = null;
 
+let fanParticles = [];
+
 function cleanup() {
     if (runner) Runner.stop(runner);
     if (render) {
@@ -21,6 +23,7 @@ function cleanup() {
     }
     if (engine) Engine.clear(engine);
     Character.cleanupControls();
+    fanParticles = []; // Clear particles on cleanup
 }
 
 function resetGame() {
@@ -84,33 +87,22 @@ function startGame(stageId) {
                 if (magnitude > 25) { // Increased threshold slightly
                     wallBroken = true; // Set flag immediately to prevent re-entry
 
-                    // Defer the replacement to avoid modifying world during collision event
+                    // Defer the action to avoid modifying the world during a collision event.
+                    // This new approach is much safer. Instead of replacing the composite,
+                    // we just remove its constraints, letting the bodies fall apart naturally.
                     setTimeout(() => {
                         const wall = Composite.allComposites(world).find(c => c.label === 'breakable_wall');
                         if (!wall) return;
 
-                        const bricks = Composite.allBodies(wall);
-                        const newBricks = [];
-
-                        // Record properties and create new unconstrained bricks
-                        bricks.forEach(brick => {
-                            const newBrick = Matter.Bodies.rectangle(
-                                brick.position.x, brick.position.y,
-                                brick.bounds.max.x - brick.bounds.min.x, // width
-                                brick.bounds.max.y - brick.bounds.min.y, // height
-                                {
-                                    angle: brick.angle,
-                                    velocity: brick.velocity,
-                                    angularVelocity: brick.angularVelocity,
-                                    render: brick.render
-                                }
-                            );
-                            newBricks.push(newBrick);
+                        // Create a copy of the constraints array to iterate over,
+                        // as removing constraints will modify the original array.
+                        const constraints = [...wall.constraints];
+                        constraints.forEach(constraint => {
+                            Matter.Composite.remove(wall, constraint);
                         });
 
-                        // Perform the swap
-                        Matter.Composite.remove(world, wall);
-                        Matter.Composite.add(world, newBricks);
+                        // Re-label the composite so this logic doesn't run on it again.
+                        wall.label = 'broken_wall';
                     }, 0);
 
                     break; // Exit loop once break is initiated
@@ -124,14 +116,18 @@ function startGame(stageId) {
 
         // Fan logic
         if (stageElements.fanVent) {
-            const fanHeight = 300; // The effective height of the fan's air column
-            const fanBaseY = stageElements.fanVent.position.y;
+            const fanBounds = stageElements.fanVent.bounds;
+            const bodiesInFan = Matter.Query.region(Composite.allBodies(world), fanBounds);
 
-            const bodiesInFan = Matter.Query.region(Composite.allBodies(world), stageElements.fanVent.bounds);
             bodiesInFan.forEach(body => {
-                // Apply force only if the body is within the fan's effective height range
-                if (!body.isStatic && body.position.y > (fanBaseY - fanHeight)) {
-                    Matter.Body.applyForce(body, body.position, { x: 0, y: -0.8 }); // Adjusted force
+                if (!body.isStatic && !body.isSensor) {
+                    // Apply a force that counters gravity and adds a little lift.
+                    // This makes objects of all masses "float" equally.
+                    const force = {
+                        x: 0,
+                        y: -body.mass * engine.world.gravity.y * 1.1 // 10% stronger than gravity
+                    };
+                    Matter.Body.applyForce(body, body.position, force);
                 }
             });
         }
@@ -144,11 +140,58 @@ function startGame(stageId) {
         }
     });
 
+    function manageFanParticles(fanVent, render) {
+        // Add new particles
+        if (fanVent && Math.random() < 0.6) { // Spawn rate
+            fanParticles.push({
+                x: fanVent.position.x + (Math.random() - 0.5) * (fanVent.bounds.max.x - fanVent.bounds.min.x),
+                y: fanVent.position.y - 15,
+                life: 60 + Math.random() * 60, // Lifetime in frames
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: -Math.random() * 1.5 - 0.5
+            });
+        }
+
+        // Update and draw particles
+        const ctx = render.context;
+        for (let i = fanParticles.length - 1; i >= 0; i--) {
+            let p = fanParticles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life--;
+
+            if (p.life <= 0) {
+                fanParticles.splice(i, 1);
+            } else {
+                ctx.fillStyle = `rgba(220, 240, 255, ${p.life / 100 * 0.6})`;
+                const size = Math.max(1, p.life / 30);
+                ctx.fillRect(p.x - size / 2, p.y - size / 2, size, size);
+            }
+        }
+    }
+
     // --- UI Rendering ---
     Matter.Events.on(engine, 'afterRender', (event) => {
+        const ctx = render.context;
+
+        // Draw fan particles
+        manageFanParticles(stageElements.fanVent, render);
+
+        // Draw grab radius indicator
+        const torso = Character.getTorso();
+        if (torso) {
+            const grabRadius = Character.getGrabRadius();
+            const grabbing = Character.isGrabbing();
+            ctx.beginPath();
+            ctx.arc(torso.position.x, torso.position.y, grabRadius, 0, 2 * Math.PI);
+            ctx.strokeStyle = grabbing ? 'rgba(255, 223, 0, 0.8)' : 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = grabbing ? 2.5 : 1.5;
+            ctx.stroke();
+        }
+
+        // Goal check and rendering
         if (isGoal) {
             stageElements.goalZone.render.fillStyle = 'rgba(255, 215, 0, 0.7)';
-            const ctx = render.context;
             ctx.fillStyle = '#FFD700';
             ctx.font = 'bold 80px Arial';
             ctx.textAlign = 'center';

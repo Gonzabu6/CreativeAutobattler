@@ -19,14 +19,14 @@ const Character = (() => {
         };
 
         torso = Matter.Bodies.rectangle(x, y, 60, 110, torsoOptions);
-        Matter.Body.setInertia(torso, Infinity);
+        // Matter.Body.setInertia(torso, Infinity); // Removed to allow tumbling
 
-        head = Matter.Bodies.circle(x, y - 85, 30, limbOptions);
+        head = Matter.Bodies.circle(x, y - 100, 30, limbOptions); // Raised head
         leftArm = Matter.Bodies.rectangle(x - 50, y - 20, 20, 80, limbOptions);
         rightArm = Matter.Bodies.rectangle(x + 50, y - 20, 20, 80, limbOptions);
 
         const headConstraint = Matter.Constraint.create({
-            bodyA: torso, bodyB: head, pointA: {x:0, y:-55},
+            bodyA: torso, bodyB: head, pointA: {x:0, y:-70}, // Raised neck joint
             stiffness: 0.95,
             damping: 0.3,
             length: 5
@@ -98,6 +98,9 @@ const Character = (() => {
         if (mouseupListener) window.removeEventListener('mouseup', mouseupListener);
     };
 
+    const getGrabRadius = () => 120; // Expose grab radius for rendering
+    const isGrabbing = () => grabConstraint !== null;
+
     const initControls = (world, mouse) => {
         cleanupControls(); // Clean up any old listeners first
 
@@ -108,61 +111,47 @@ const Character = (() => {
             if (grabConstraint) return;
 
             const allBodies = Matter.Composite.allBodies(world);
-            let bodyToGrab = null;
+            const grabRadius = getGrabRadius();
+            const characterPosition = torso.position;
+            let closestBody = null;
+            let minDistanceSq = Infinity;
 
-            // 1. Prioritize object directly under the mouse
-            const bodiesUnderMouse = Matter.Query.point(allBodies, mouse.position);
-            for (const body of bodiesUnderMouse) {
-                if (!body.isStatic && !body.isSensor && body.label !== 'character_part') {
-                    bodyToGrab = body;
-                    break;
+            // Find the body closest to the mouse, but only within a radius of the character.
+            allBodies.forEach(body => {
+                if (body.isStatic || body.isSensor || body.label === 'character_part') {
+                    return;
                 }
-            }
 
-            // 2. If nothing under mouse, search in a radius around the player
-            if (!bodyToGrab) {
-                const grabRadius = 40; // Even smaller radius
-                let minDistance = Infinity;
-
-                allBodies.forEach(body => {
-                    if (body.isStatic || body.isSensor || body.label === 'character_part') {
-                        return;
+                const distanceToChar = Matter.Vector.magnitude(Matter.Vector.sub(characterPosition, body.position));
+                if (distanceToChar < grabRadius) {
+                    const distanceToMouseSq = Matter.Vector.magnitudeSquared(Matter.Vector.sub(mouse.position, body.position));
+                    if (distanceToMouseSq < minDistanceSq) {
+                        minDistanceSq = distanceToMouseSq;
+                        closestBody = body;
                     }
-                    const distance = Matter.Vector.magnitude(Matter.Vector.sub(torso.position, body.position));
-                    if (distance < minDistance) {
-                        minDistance = distance;
-                        bodyToGrab = body;
-                    }
-                });
-
-                // If the closest body is outside the radius, don't grab it
-                if (minDistance > grabRadius) {
-                    bodyToGrab = null;
                 }
-            }
+            });
 
-            // 3. If a body was found, grab it
-            if (bodyToGrab) {
-                const armToUse = (Matter.Vector.magnitude(Matter.Vector.sub(mouse.position, leftArm.position)) < Matter.Vector.magnitude(Matter.Vector.sub(mouse.position, rightArm.position))) ? leftArm : rightArm;
+            if (closestBody) {
+                // Grab the body with a constraint to the torso for stability and simplicity.
                 grabConstraint = Matter.Constraint.create({
-                    bodyA: armToUse,
-                    bodyB: bodyToGrab,
-                    stiffness: 0.02,
-                    length: Matter.Vector.magnitude(Matter.Vector.sub(armToUse.position, bodyToGrab.position)),
-                    render: { strokeStyle: '#c44', lineWidth: 3 }
+                    bodyA: torso,
+                    bodyB: closestBody,
+                    pointA: { x: 0, y: 0 },
+                    pointB: { x: 0, y: 0 },
+                    stiffness: 0.05,
+                    length: 100, // A fixed comfortable holding distance
+                    render: { strokeStyle: '#c44', lineWidth: 3, type: 'line' }
                 });
                 Matter.Composite.add(world, grabConstraint);
-                setTimeout(() => { if (grabConstraint) grabConstraint.length = 40; }, 100);
             }
         };
 
         mouseupListener = (e) => {
             if (grabConstraint) {
-                // A body's `world` property is a direct reference to the live world it's in.
-                // This is more robust than relying on a `world` variable from a closure,
-                // which can become stale if not managed perfectly.
+                // Using bodyA.world is robust, ensures we're removing from the correct world instance.
                 const liveWorld = grabConstraint.bodyA.world;
-                Matter.Composite.remove(liveWorld, grabConstraint);
+                Matter.Composite.remove(liveWorld, grabConstraint, true); // true for deep remove
                 grabConstraint = null;
             }
         };
@@ -199,18 +188,17 @@ const Character = (() => {
         const isMoving = Math.abs(torso.velocity.x) > 1;
         if (isMoving) {
             const walkCycle = engine.timing.timestamp * 0.008;
-            const swingAmount = 0.6;
+            const swingAmount = 1.0; // Increased for more swing
             const targetLeftAngle = Math.sin(walkCycle) * swingAmount;
             const targetRightAngle = Math.sin(walkCycle + Math.PI) * swingAmount;
 
-            const turnSpeed = 0.2;
+            const turnSpeed = 0.3; // Increased for faster leg movement
             Matter.Body.setAngularVelocity(leftThigh, (targetLeftAngle - leftThigh.angle) * turnSpeed);
             Matter.Body.setAngularVelocity(rightThigh, (targetRightAngle - rightThigh.angle) * turnSpeed);
 
-            // Try to keep shins from going backwards too much
-            const kneeBend = Math.max(0, Math.sin(walkCycle));
-            Matter.Body.setAngularVelocity(leftShin, (leftThigh.angle * 0.5 + kneeBend * 0.5 - leftShin.angle) * 0.1);
-            Matter.Body.setAngularVelocity(rightShin, (rightThigh.angle * 0.5 + kneeBend * 0.5 - rightShin.angle) * 0.1);
+            // Simplified shin logic for a more puppet-like, visible walk
+            Matter.Body.setAngularVelocity(leftShin, (leftThigh.angle * 0.9 - leftShin.angle) * turnSpeed);
+            Matter.Body.setAngularVelocity(rightShin, (rightThigh.angle * 0.9 - rightShin.angle) * turnSpeed);
         } else {
             // Try to stand straight when not moving
             const standSpeed = 0.1;
@@ -225,6 +213,9 @@ const Character = (() => {
         create: create,
         initControls: initControls,
         cleanupControls: cleanupControls,
-        update: update
+        update: update,
+        getTorso: () => torso,
+        getGrabRadius: getGrabRadius,
+        isGrabbing: isGrabbing
     };
 })();
