@@ -10,6 +10,7 @@ const Stage = (() => {
         let targetBox, goalZone, fanVent;
 
         switch (stageId) {
+            /*
             case 3: {
                 // --- Stage 3: Breakable Wall ---
                 const wallStack = Matter.Composites.stack(width / 2, height - 250, 4, 6, 0, 0, (x, y) => {
@@ -38,6 +39,7 @@ const Stage = (() => {
                 Matter.Composite.add(world, [targetBox, goalZone]);
                 break;
             }
+            */
             case 1:
                 // --- Stage 1: The Wall ---
                 targetBox = Matter.Bodies.rectangle(450, height - 65, 60, 60, {

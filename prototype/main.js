@@ -67,7 +67,7 @@ function startGame(stageId) {
 
     // --- Create Stage and Character ---
     const stageElements = Stage.create(stageId, world, canvasWidth, canvasHeight);
-    Character.create(150, canvasHeight - 400, world); // Raise character spawn height
+    Character.create(150, canvasHeight - 200, world); // Original spawn height
     Character.initControls(world, mouse);
 
     // --- Game Loop ---
@@ -146,6 +146,9 @@ function startGame(stageId) {
 
     // --- UI Rendering ---
     Matter.Events.on(engine, 'afterRender', (event) => {
+        // Draw visual character parts
+        Character.draw(render.context);
+
         if (isGoal) {
             stageElements.goalZone.render.fillStyle = 'rgba(255, 215, 0, 0.7)';
             const ctx = render.context;
@@ -168,7 +171,7 @@ window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('back-to-select').classList.add('hidden');
     document.getElementById('stage1').addEventListener('click', () => startGame(1));
     document.getElementById('stage2').addEventListener('click', () => startGame(2));
-    document.getElementById('stage3').addEventListener('click', () => startGame(3));
+    // document.getElementById('stage3').addEventListener('click', () => startGame(3));
     document.getElementById('back-to-select').addEventListener('click', resetGame);
 
     window.addEventListener('keydown', (e) => {
