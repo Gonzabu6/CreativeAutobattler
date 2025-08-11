@@ -27,9 +27,9 @@ const Character = (() => {
 
         const headConstraint = Matter.Constraint.create({
             bodyA: torso, bodyB: head, pointA: {x:0, y:-55},
-            stiffness: 0.9,
+            stiffness: 0.95,
             damping: 0.3,
-            length: 25
+            length: 5
         });
         const leftShoulder = Matter.Constraint.create({
             bodyA: torso, bodyB: leftArm, pointA: {x:-30, y:-35},
@@ -121,7 +121,7 @@ const Character = (() => {
 
             // 2. If nothing under mouse, search in a radius around the player
             if (!bodyToGrab) {
-                const grabRadius = 80; // New, smaller radius
+                const grabRadius = 40; // Even smaller radius
                 let minDistance = Infinity;
 
                 allBodies.forEach(body => {
@@ -147,7 +147,7 @@ const Character = (() => {
                 grabConstraint = Matter.Constraint.create({
                     bodyA: armToUse,
                     bodyB: bodyToGrab,
-                    stiffness: 0.2,
+                    stiffness: 0.02,
                     length: Matter.Vector.magnitude(Matter.Vector.sub(armToUse.position, bodyToGrab.position)),
                     render: { strokeStyle: '#c44', lineWidth: 3 }
                 });
@@ -158,12 +158,12 @@ const Character = (() => {
 
         mouseupListener = (e) => {
             if (grabConstraint) {
-                // It's possible the 'world' reference in this closure is stale.
-                // To be safe, we nullify the constraint reference regardless,
-                // which prevents the player from getting stuck.
-                // The proper fix is cleaning up listeners, but this is a defensive measure.
-                Matter.Composite.remove(world, grabConstraint); // Attempt removal
-                grabConstraint = null; // Always nullify to un-stick the player
+                // A body's `world` property is a direct reference to the live world it's in.
+                // This is more robust than relying on a `world` variable from a closure,
+                // which can become stale if not managed perfectly.
+                const liveWorld = grabConstraint.bodyA.world;
+                Matter.Composite.remove(liveWorld, grabConstraint);
+                grabConstraint = null;
             }
         };
 
@@ -186,8 +186,10 @@ const Character = (() => {
 
         let newVelocityY = torso.velocity.y;
         if ((keys['KeyW'] || keys['Space'])) {
-            const collisions = Matter.Query.collides(torso, [ground]);
-            if (collisions.length > 0) {
+            // Check if either shin is touching the ground to allow jumping
+            const leftShinCollisions = Matter.Query.collides(leftShin, [ground]);
+            const rightShinCollisions = Matter.Query.collides(rightShin, [ground]);
+            if (leftShinCollisions.length > 0 || rightShinCollisions.length > 0) {
                  newVelocityY = jumpVelocity;
             }
         }

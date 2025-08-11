@@ -17,12 +17,13 @@ const Stage = (() => {
                         render: { fillStyle: '#b08a76' }
                     });
                 });
+                wallStack.label = 'breakable_wall'; // Add a label to the composite itself
                 wallStack.bodies.forEach(b => { b.label = 'brick'; });
                 wallStack.constraints.forEach(c => { c.label = 'brickConstraint'; });
                 Matter.Composite.add(world, wallStack);
 
                 // Add a heavy ball to break the wall
-                const heavyBall = Matter.Bodies.circle(400, height - 300, 40, { density: 0.05, render: {fillStyle: '#5D4037'} });
+                const heavyBall = Matter.Bodies.circle(400, height - 300, 40, { density: 0.01, render: {fillStyle: '#5D4037'} }); // Reduced density
                 Matter.Composite.add(world, heavyBall);
 
                 targetBox = Matter.Bodies.rectangle(width - 250, height - 65, 60, 60, {

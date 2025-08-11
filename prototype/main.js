@@ -73,24 +73,47 @@ function startGame(stageId) {
     // --- Game Loop ---
     let isGoal = false;
     Matter.Events.on(engine, 'collisionStart', event => {
-        if (wallBroken) return; // Don't do anything if wall is already broken
+        if (wallBroken) return;
 
         const pairs = event.pairs;
         for (const pair of pairs) {
-            const { bodyA, bodyB } = pair;
-            if (bodyA.label === 'brick' || bodyB.label === 'brick') {
+            if (pair.bodyA.label === 'brick' || pair.bodyB.label === 'brick') {
                 const impulse = pair.collision.impulse;
                 const magnitude = Math.sqrt(impulse.x * impulse.x + impulse.y * impulse.y);
 
-                if (magnitude > 20) {
-                    const brickConstraints = Composite.allConstraints(world).filter(c => c.label === 'brickConstraint');
-                    if (brickConstraints.length > 0) {
-                        wallBroken = true; // Set the flag
-                        // Defer removal to avoid modifying the world during collision event
-                        setTimeout(() => {
-                            Matter.Composite.remove(world, brickConstraints);
-                        }, 0);
-                    }
+                if (magnitude > 25) { // Increased threshold slightly
+                    wallBroken = true; // Set flag immediately to prevent re-entry
+
+                    // Defer the replacement to avoid modifying world during collision event
+                    setTimeout(() => {
+                        const wall = Composite.allComposites(world).find(c => c.label === 'breakable_wall');
+                        if (!wall) return;
+
+                        const bricks = Composite.allBodies(wall);
+                        const newBricks = [];
+
+                        // Record properties and create new unconstrained bricks
+                        bricks.forEach(brick => {
+                            const newBrick = Matter.Bodies.rectangle(
+                                brick.position.x, brick.position.y,
+                                brick.bounds.max.x - brick.bounds.min.x, // width
+                                brick.bounds.max.y - brick.bounds.min.y, // height
+                                {
+                                    angle: brick.angle,
+                                    velocity: brick.velocity,
+                                    angularVelocity: brick.angularVelocity,
+                                    render: brick.render
+                                }
+                            );
+                            newBricks.push(newBrick);
+                        });
+
+                        // Perform the swap
+                        Matter.Composite.remove(world, wall);
+                        Matter.Composite.add(world, newBricks);
+                    }, 0);
+
+                    break; // Exit loop once break is initiated
                 }
             }
         }
@@ -101,10 +124,14 @@ function startGame(stageId) {
 
         // Fan logic
         if (stageElements.fanVent) {
+            const fanHeight = 300; // The effective height of the fan's air column
+            const fanBaseY = stageElements.fanVent.position.y;
+
             const bodiesInFan = Matter.Query.region(Composite.allBodies(world), stageElements.fanVent.bounds);
             bodiesInFan.forEach(body => {
-                if (!body.isStatic) {
-                    Matter.Body.applyForce(body, body.position, { x: 0, y: -2.5 }); // Dramatically increased fan force
+                // Apply force only if the body is within the fan's effective height range
+                if (!body.isStatic && body.position.y > (fanBaseY - fanHeight)) {
+                    Matter.Body.applyForce(body, body.position, { x: 0, y: -0.8 }); // Adjusted force
                 }
             });
         }
